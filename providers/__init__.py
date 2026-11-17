@@ -14,14 +14,19 @@ def get_provider(provider_name: str, api_key: str = None, model: str = None):
         },
         "gemini": {
             "class": GeminiProvider,
-            "default_model": "gemini-1.5-flash",
-            "models": ["gemini-1.5-flash", "gemini-1.5-pro"]
+            "default_model": "gemini-3.8-flash",
+            "models": [
+                "gemini-3.8-flash",
+                "gemini-3.6-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-flash-latest"
+            ]
         },
         "groq": {
             "class": GroqProvider,
-            "default_model": "llama-3.1-70b-versatile",
+            "default_model": "llama-3.3-70b-versatile",
             "models": [
-                "llama-3.1-70b-versatile",
+                "llama-3.3-70b-versatile",
                 "llama-3.1-8b-instant",
                 "mixtral-8x7b-32768"
             ]
