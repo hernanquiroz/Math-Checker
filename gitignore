@@ -1,0 +1,39 @@
+# Entorno virtual
+venv/
+env/
+ENV/
+.venv/
+
+# Variables de entorno (NUNCA subir keys)
+.env
+
+# Archivos generados
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Reportes generados
+reporte_matematico.*
+*.pdf
+!README.pdf
+
+# Ollama modelos descargados
+ollama_models/
