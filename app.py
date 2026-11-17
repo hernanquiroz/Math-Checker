@@ -46,36 +46,77 @@ st.markdown("""
 
 
 # ============================================================
+# FUNCIÓN: Obtener API keys (Secrets > .env > Sidebar)
+# ============================================================
+def get_api_key(env_name: str) -> str:
+    """Busca la API key en este orden: Secrets → .env → vacía."""
+    # 1. Streamlit Cloud Secrets (prioridad máxima)
+    try:
+        if env_name in st.secrets:
+            return st.secrets[env_name]
+    except Exception:
+        pass
+    # 2. Variables de entorno locales (.env)
+    return os.getenv(env_name, "")
+
+
+# ============================================================
 # SIDEBAR
 # ============================================================
 with st.sidebar:
     st.title("⚙️ Configuración")
     
-    st.subheader("🤖 Proveedor LLM (GRATIS)")
+    st.subheader("🤖 Proveedor LLM")
     provider_choice = st.selectbox(
         "Elige uno",
-        ["Ollama (local, recomendado)", "Google Gemini (gratis)", "Groq (gratis rápido)", "OpenAI (pago)"]
+        [
+            "Google Gemini (RECOMENDADO - gratis)",
+            "Groq (gratis, muy rápido)",
+            "Ollama (solo local, NO en cloud)",
+            "OpenAI (de pago)"
+        ]
     )
     
     provider_map = {
-        "Ollama (local, recomendado)": ("ollama", None, ["llama3.1", "mistral", "codellama", "gemma2"]),
-        "Google Gemini (gratis)": ("gemini", "GEMINI_API_KEY", ["gemini-1.5-flash", "gemini-1.5-pro"]),
-        "Groq (gratis rápido)": ("groq", "GROQ_API_KEY", ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]),
-        "OpenAI (pago)": ("openai", "OPENAI_API_KEY", ["gpt-4o-mini", "gpt-4o"])
+        "Google Gemini (RECOMENDADO - gratis)": (
+            "gemini", "GEMINI_API_KEY",
+            ["gemini-1.5-flash", "gemini-1.5-pro"],
+            "https://aistudio.google.com/apikey"
+        ),
+        "Groq (gratis, muy rápido)": (
+            "groq", "GROQ_API_KEY",
+            ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+            "https://console.groq.com/keys"
+        ),
+        "Ollama (solo local, NO en cloud)": (
+            "ollama", None,
+            ["llama3.1", "mistral", "codellama", "gemma2"],
+            None
+        ),
+        "OpenAI (de pago)": (
+            "openai", "OPENAI_API_KEY",
+            ["gpt-4o-mini", "gpt-4o"],
+            "https://platform.openai.com/api-keys"
+        )
     }
     
-    prov_name, env_key, models = provider_map[provider_choice]
+    prov_name, env_key, models, signup_url = provider_map[provider_choice]
     
+    # Mostrar estado de la API key
     if env_key:
-        api_key = st.text_input(
-            f"🔑 API Key ({prov_name.upper()})",
-            type="password",
-            value=os.getenv(env_key, ""),
-            help=f"Obtén gratis en: {'https://aistudio.google.com/apikey' if 'gemini' in prov_name else 'https://console.groq.com' if 'groq' in prov_name else 'https://platform.openai.com'}"
-        )
+        api_key = get_api_key(env_key)
+        if api_key:
+            st.success(f"✅ API Key detectada ({env_key})")
+            st.caption(f"Key: {api_key[:8]}...{api_key[-4:]}")
+        else:
+            st.error(f"❌ No hay API Key de {prov_name.upper()}")
+            st.markdown(f"👉 Consíguela gratis en: [{signup_url}]({signup_url})")
+            st.markdown("👉 Guárdala en **Settings → Secrets** de Streamlit Cloud")
+            api_key = st.text_input("O pégala aquí (temporal):", type="password")
     else:
+        # Ollama
+        st.warning("⚠️ Ollama solo funciona en local, NO en Streamlit Cloud")
         api_key = None
-        st.info("💡 Ollama no requiere API key. Solo instala Ollama y descarga un modelo.")
     
     model = st.selectbox("Modelo", models)
     
@@ -87,7 +128,7 @@ with st.sidebar:
     )
     
     if "OCR" in extraction_method and not check_tesseract_available():
-        st.warning("⚠️ Tesseract no instalado. Ver README.")
+        st.warning("⚠️ Tesseract no instalado en el servidor. Usa texto nativo.")
     
     st.markdown("---")
     st.subheader("🔬 Motores")
@@ -121,11 +162,10 @@ if teacher_mode:
 # PROCESAMIENTO
 # ============================================================
 if uploaded_file:
+    # Verificar que tenga API key si el proveedor la requiere
     needs_key = env_key is not None
-    has_key = bool(api_key)
-    
-    if needs_key and not has_key:
-        st.error(f"❌ Configura tu {env_key} en el sidebar o en .env")
+    if needs_key and not api_key:
+        st.error("❌ Necesitas configurar la API Key. Revisa el sidebar.")
     else:
         if st.button("🔍 Analizar documento", type="primary", use_container_width=True):
             pdf_bytes = uploaded_file.read()
@@ -148,23 +188,27 @@ if uploaded_file:
             # 2. PROVEEDOR LLM
             try:
                 provider, _ = get_provider(prov_name, api_key=api_key, model=model)
+                st.session_state['provider_name'] = provider.get_provider_name()
             except Exception as e:
                 st.error(f"❌ Error LLM: {str(e)}")
                 st.stop()
             
             # 3. ANÁLISIS
-            with st.spinner("🧠 Analizando..."):
+            with st.spinner("🧠 Analizando con Gemini..."):
                 symbolic = SymbolicMathChecker() if use_symbolic else None
                 semantic = SemanticChecker(provider) if use_semantic else None
                 formal = FormalChecker(provider) if use_formal else None
                 
                 results = []
                 progress = st.progress(0)
+                status = st.empty()
                 
                 for i, page in enumerate(pages):
                     if not page.text.strip():
                         progress.progress((i + 1) / len(pages))
                         continue
+                    
+                    status.info(f"🔍 Analizando página {page.page_number} de {len(pages)}...")
                     
                     page_result = {
                         "page": page.page_number,
@@ -194,6 +238,7 @@ if uploaded_file:
                     results.append(page_result)
                     progress.progress((i + 1) / len(pages))
                 
+                status.empty()
                 st.session_state['results'] = results
             
             st.success("✅ ¡Análisis completado!")
@@ -286,5 +331,5 @@ if 'results' in st.session_state and st.session_state['results']:
 
 
 st.markdown("---")
-st.markdown("<div style='text-align:center;color:#666;'><small>🧮 MathChecker v2.0 | 100% Gratuito | SymPy + LLM</small></div>",
+st.markdown("<div style='text-align:center;color:#666;'><small>🧮 MathChecker v2.0 | 100% Gratuito | SymPy + Gemini</small></div>",
             unsafe_allow_html=True)
