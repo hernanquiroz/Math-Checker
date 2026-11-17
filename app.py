@@ -80,8 +80,25 @@ with st.sidebar:
     provider_map = {
         "Google Gemini (RECOMENDADO - gratis)": (
             "gemini", "GEMINI_API_KEY",
-            ["gemini-1.5-flash", "gemini-1.5-pro"],
+            ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"],
             "https://aistudio.google.com/apikey"
+        ),
+        "Groq (gratis, muy rápido)": (
+            "groq", "GROQ_API_KEY",
+            ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+            "https://console.groq.com/keys"
+        ),
+        "Ollama (solo local, NO en cloud)": (
+            "ollama", None,
+            ["llama3.1", "mistral", "codellama", "gemma2"],
+            None
+        ),
+        "OpenAI (de pago)": (
+            "openai", "OPENAI_API_KEY",
+            ["gpt-4o-mini", "gpt-4o"],
+            "https://platform.openai.com/api-keys"
+        )
+    }
         ),
         "Groq (gratis, muy rápido)": (
             "groq", "GROQ_API_KEY",
