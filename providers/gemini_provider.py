@@ -1,14 +1,15 @@
 import os
 import json
 from typing import Dict, Any
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from .base_provider import BaseLLMProvider
 
 
 class GeminiProvider(BaseLLMProvider):
-    """Proveedor de Google Gemini (gratis con límites)."""
+    """Proveedor de Google Gemini con el NUEVO SDK (google-genai)."""
     
-    def __init__(self, api_key: str = None, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str = None, model: str = "gemini-3.8-flash"):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model = model
         
@@ -18,8 +19,8 @@ class GeminiProvider(BaseLLMProvider):
                 "Obtén una gratis en: https://aistudio.google.com/apikey"
             )
         
-        genai.configure(api_key=self.api_key)
-        self.client = genai.GenerativeModel(self.model)
+        # Cliente del nuevo SDK
+        self.client = genai.Client(api_key=self.api_key)
     
     def get_model_name(self) -> str:
         return self.model
@@ -30,21 +31,26 @@ class GeminiProvider(BaseLLMProvider):
     def chat(self, system_prompt: str, user_prompt: str,
              temperature: float = 0.2, json_mode: bool = True) -> Dict[str, Any]:
         try:
+            # Configurar generación
+            config = types.GenerateContentConfig(
+                temperature=temperature,
+                system_instruction=system_prompt
+            )
+            
+            # JSON mode nativo del nuevo SDK (mejor que forzarlo en el prompt)
             if json_mode:
-                user_prompt += "\n\nResponde ÚNICAMENTE con JSON válido, sin texto adicional."
+                config.response_mime_type = "application/json"
             
-            full_prompt = f"{system_prompt}\n\n{user_prompt}"
-            
-            response = self.client.generate_content(
-                full_prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=temperature
-                )
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=user_prompt,
+                config=config
             )
             
             content = response.text
             
             if json_mode:
+                # Limpiar posibles markdown code blocks (por si acaso)
                 content = content.strip()
                 if content.startswith("```"):
                     lines = content.split("\n")
@@ -53,14 +59,46 @@ class GeminiProvider(BaseLLMProvider):
                         content = content[4:]
                 return json.loads(content)
             return {"content": content}
+            
         except json.JSONDecodeError as e:
-            return {"error": f"JSON inválido: {str(e)}", "raw": content,
-                    "has_errors": True, "errors": []}
+            return {
+                "error": f"JSON inválido: {str(e)}",
+                "has_errors": True,
+                "errors": [{
+                    "type": "sistema",
+                    "severity": "medio",
+                    "location": "N/A",
+                    "description": "El LLM devolvió respuesta no parseable",
+                    "correction": "Reintentar análisis"
+                }],
+                "summary": "",
+                "grade": "?"
+            }
         except Exception as e:
-            return {"error": str(e), "has_errors": True, "errors": [{
-                "type": "sistema",
-                "severity": "crítico",
-                "location": "N/A",
-                "description": f"Error Gemini: {str(e)}",
-                "correction": "Verificar API key y cuota"
-            }]}
+            error_msg = str(e)
+            # Detectar errores comunes de Gemini
+            if "404" in error_msg or "not found" in error_msg.lower():
+                hint = (
+                    "Modelo no disponible. Usa 'gemini-3.8-flash' o "
+                    "'gemini-3.5-flash-lite'. Los modelos 1.5 y 2.5 fueron retirados."
+                )
+            elif "429" in error_msg or "quota" in error_msg.lower():
+                hint = "Cuota gratis agotada (1500 req/día). Espera o usa Groq."
+            elif "403" in error_msg:
+                hint = "API key inválida o sin permisos. Regenera en aistudio.google.com/apikey"
+            else:
+                hint = "Verificar API key y conexión"
+            
+            return {
+                "error": error_msg,
+                "has_errors": True,
+                "errors": [{
+                    "type": "sistema",
+                    "severity": "crítico",
+                    "location": "N/A",
+                    "description": f"Error Gemini: {error_msg}",
+                    "correction": hint
+                }],
+                "summary": "",
+                "grade": "?"
+            }
