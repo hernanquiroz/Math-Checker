@@ -1,3 +1,4 @@
+
 from .ollama_provider import OllamaProvider
 from .gemini_provider import GeminiProvider
 from .groq_provider import GroqProvider
@@ -5,7 +6,6 @@ from .openai_provider import OpenAIProvider
 
 
 def get_provider(provider_name: str, api_key: str = None, model: str = None):
-    """Factory para obtener el proveedor correcto."""
     providers = {
         "ollama": {
             "class": OllamaProvider,
@@ -14,22 +14,13 @@ def get_provider(provider_name: str, api_key: str = None, model: str = None):
         },
         "gemini": {
             "class": GeminiProvider,
-            "default_model": "gemini-3.8-flash",
-            "models": [
-                "gemini-3.8-flash",
-                "gemini-3.6-flash",
-                "gemini-3.5-flash-lite",
-                "gemini-flash-latest"
-            ]
+            "default_model": "gemini-3.5-flash-lite",
+            "models": ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-flash-latest"]
         },
         "groq": {
             "class": GroqProvider,
             "default_model": "llama-3.3-70b-versatile",
-            "models": [
-                "llama-3.3-70b-versatile",
-                "llama-3.1-8b-instant",
-                "mixtral-8x7b-32768"
-            ]
+            "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
         },
         "openai": {
             "class": OpenAIProvider,
